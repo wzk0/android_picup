@@ -61,9 +61,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.PICUP_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.PICUP_KEY_PASSWORD }}
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          GITHUB_REF: ${{ github.ref }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || \
              [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "::error::A release tag needs all four signing secrets."
+              exit 1
+            fi
             echo "::warning::Release signing secrets are missing; the release APK will be unsigned."
             exit 0
           fi
@@ -86,3 +91,51 @@ jobs:
           name: PicUp-release
           path: app/build/outputs/apk/release/*.apk
           retention-days: 7
+
+  # Tag pushes publish themselves: the signed APK from the job above becomes the
+  # release asset, so nobody has to move builds by hand (and a release can never
+  # ship a locally built APK again).
+  publish:
+    name: Publish GitHub release
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download the signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: PicUp-release
+          path: dist
+
+      - name: Write checksums
+        run: |
+          cd dist
+          sha256sum ./*.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          notes_args=(--generate-notes)
+          if [ -f "docs/release-notes/$TAG.md" ]; then
+            notes_args=(--notes-file "docs/release-notes/$TAG.md")
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
+            gh release edit "$TAG" --title "PicUp $TAG" "${notes_args[@]}"
+          else
+            gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt \
+              --title "PicUp $TAG" --verify-tag "${notes_args[@]}"
+          fi
