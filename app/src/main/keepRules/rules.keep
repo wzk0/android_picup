@@ -1,0 +1,15 @@
+# R8 rules for the persisted models.
+#
+# kotlinx-serialization ships consumer rules for retained @Serializable classes,
+# but these four documents are the app's long-term state: if a serializer is
+# stripped, the settings file silently decodes as defaults and the user loses
+# their repositories. Keep the generated serializers and companions explicitly.
+
+-keep,allowobfuscation class com.example.picup.data.**$$serializer { *; }
+-keepclassmembers class com.example.picup.data.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.example.picup.data.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,allowobfuscation @kotlinx.serialization.Serializable class com.example.picup.data.** { *; }

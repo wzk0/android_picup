@@ -1,0 +1,88 @@
+name: CI
+
+# Everything here ships the release variant: PicUp distributes signed release
+# APKs only. A debug APK is one local `./gradlew assembleDebug` away when it is
+# actually wanted.
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Test, build and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: |
+          # Ignore only yes's SIGPIPE; an sdkmanager failure still fails CI.
+          (set +o pipefail; yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null)
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;37.0.0"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # `test` runs the suite AGP actually creates here — the debug unit-test
+      # variant; the optimised release variant has none.
+      - name: Run unit tests
+        run: ./gradlew test --stacktrace
+
+      # The four signing secrets are optional: without them the release APK is
+      # still built and lint-checked, just unsigned. They come from
+      # scripts/release-signing.sh and never live in the repository.
+      - name: Decode release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PICUP_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PICUP_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PICUP_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PICUP_KEY_PASSWORD }}
+          KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || \
+             [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::warning::Release signing secrets are missing; the release APK will be unsigned."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          {
+            echo "PICUP_KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "PICUP_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "PICUP_KEY_ALIAS=$KEY_ALIAS"
+            echo "PICUP_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build and lint the release variant
+        run: ./gradlew :app:assembleRelease :app:lintRelease --stacktrace --max-workers=2
+
+      - name: Upload release APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PicUp-release
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 7

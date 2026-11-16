@@ -24,12 +24,17 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
-# Keystore files
+# Keystore files and local signing material
 *.jks
 *.keystore
+release-signing.env
+signing.properties
 
 # Google Services (e.g. APIs or Firebase)
 google-services.json
 
 # Android Profiling
 *.hprof
+
+# Agent notes stay local
+*AGENTS.md

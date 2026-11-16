@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Tokens are encrypted with a key that lives in the Android Keystore and
+         therefore cannot leave this device. Backing the ciphertext up only
+         produces undecryptable bytes, so it is excluded. -->
+    <exclude domain="sharedpref" path="picup.tokens.xml" />
+</full-backup-content>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand name, never translated. -->
+    <string name="app_name" translatable="false">PicUp</string>
+
+    <!-- Accessibility labels for the snackbar host. -->
+    <string name="notification_pane_title">通知</string>
+    <string name="notification_dismiss">关闭</string>
+</resources>

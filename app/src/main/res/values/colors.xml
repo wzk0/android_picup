@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window background is drawn by the system before Compose starts.
+         These two values match the Compose palettes so the first frame does not
+         flash a different colour. -->
+    <color name="window_background">#F3F5F4</color>
+    <color name="window_background_dark">#101413</color>
+    <color name="ic_launcher_background">#246B50</color>
+</resources>

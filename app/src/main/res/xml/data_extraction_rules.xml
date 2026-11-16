@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="picup.tokens.xml" />
+    </cloud-backup>
+    <!-- Device transfer gets the same treatment as cloud backup: the token
+         cannot be decrypted on the new device, so it would only be dead weight. -->
+    <device-transfer>
+        <exclude domain="sharedpref" path="picup.tokens.xml" />
+    </device-transfer>
+</data-extraction-rules>
