@@ -233,7 +233,6 @@ fun MainScreen(
     clipboardText?.let { text ->
         ClipboardUploadDialog(
             initialName = clipboardName,
-            characterCount = text.length,
             onDismiss = { clipboardText = null },
             onConfirm = { name ->
                 viewModel.enqueueClipboardText(text, name)
@@ -338,7 +337,6 @@ private fun defaultClipboardFileName(): String {
 @Composable
 private fun ClipboardUploadDialog(
     initialName: String,
-    characterCount: Int,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -355,11 +353,6 @@ private fun ClipboardUploadDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                )
-                Text(
-                    text = "共 $characterCount 个字符，按纯文本文件上传。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
@@ -613,30 +606,30 @@ private fun PickCard(
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilledTonalIconButton(
                     onClick = onPickAnyFile,
-                    modifier = Modifier.size(52.dp),
+                    modifier = Modifier.size(42.dp),
                     shape = MaterialShapes.Cookie9Sided.toShape(),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.UploadFile,
                         contentDescription = "上传任意文件",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
                 FilledTonalIconButton(
                     onClick = onPasteClipboard,
-                    modifier = Modifier.size(52.dp),
+                    modifier = Modifier.size(42.dp),
                     shape = MaterialShapes.Cookie9Sided.toShape(),
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ContentPaste,
                         contentDescription = "上传剪贴板内容",
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
@@ -816,8 +809,9 @@ private fun RecentRowContent(
             onCopy = onCopy,
             modifier = Modifier
                 .fillMaxWidth()
-                // Right edge lines up with the open-in-browser button above.
-                .padding(start = 12.dp, end = 12.dp),
+                // Symmetric insets: the chip strip is centred inside the card
+                // instead of being optically aligned to the icon above it.
+                .padding(horizontal = 12.dp),
         )
     }
 }
@@ -926,8 +920,12 @@ private fun HistoryTab(
                 AnimatedContent(
                     targetState = selecting,
                     transitionSpec = {
-                        (fadeIn(tween(170)) + slideInHorizontally(tween(200)) { width -> -width / 4 }) togetherWith
-                            (fadeOut(tween(120)) + slideOutHorizontally(tween(140)) { width -> width / 4 })
+                        val spec = spring<Float>(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        )
+                        (fadeIn(spec) + scaleIn(spec, initialScale = 0.9f)) togetherWith
+                            (fadeOut(tween(120)) + scaleOut(tween(140), targetScale = 0.95f))
                     },
                     label = "history-left-slot",
                 ) { inSelection ->
@@ -944,7 +942,7 @@ private fun HistoryTab(
                                 Icon(
                                     imageVector = Icons.Rounded.Delete,
                                     contentDescription = "删除选中的文件",
-                                    tint = MaterialTheme.colorScheme.error,
+                                    tint = MaterialTheme.colorScheme.tertiary,
                                 )
                             }
                         }
@@ -1272,11 +1270,11 @@ private fun SelectionDot(
     )
     // Toggling a single item must animate too, not just the first long press.
     val fill by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) colors.primary else colors.surfaceContainerHighest,
+        targetValue = if (selected) colors.primary else colors.surface.copy(alpha = 0.92f),
         label = "selection-dot-fill",
     )
     val ring by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) colors.primary else colors.outline,
+        targetValue = if (selected) androidx.compose.ui.graphics.Color.Transparent else colors.outlineVariant,
         label = "selection-dot-ring",
     )
     val checkAlpha by animateFloatAsState(
@@ -1296,10 +1294,10 @@ private fun SelectionDot(
                 scaleX = scale
                 scaleY = scale
             }
-            .size(22.dp)
+            .size(20.dp)
             .clip(CircleShape)
             .background(fill)
-            .border(1.5.dp, ring, CircleShape),
+            .border(1.dp, ring, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -1307,7 +1305,7 @@ private fun SelectionDot(
             contentDescription = if (selected) "已选择" else null,
             tint = colors.onPrimary,
             modifier = Modifier
-                .size(14.dp)
+                .size(13.dp)
                 .graphicsLayer {
                     this.alpha = checkAlpha
                     scaleX = checkScale

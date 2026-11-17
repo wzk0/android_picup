@@ -12,6 +12,7 @@ import com.example.picup.git.plugins.GitHostPlugins
 import com.example.picup.data.SettingsRepository
 import com.example.picup.data.TemplateValues
 import com.example.picup.data.TokenStore
+import com.example.picup.data.UploadKinds
 import com.example.picup.data.UploadRecord
 import com.example.picup.git.GitAuthException
 import com.example.picup.git.GitClients
@@ -53,13 +54,14 @@ class UploadManager(
 
         onStage("处理图片")
         val mime = context.contentResolver.getType(uri).orEmpty()
-        // `file://` URIs (clipboard text, cache copies) have no MIME type, so the
-        // extension decides whether the image pipeline applies.
-        val (_, extension) = Naming.splitExtension(displayName)
-        val looksLikeImage = mime.startsWith("image/") ||
-            (mime.isBlank() && extension in IMAGE_EXTENSIONS)
-        val prepared = if (looksLikeImage) {
-            images.prepare(uri, snapshot.upload)
+        val prepared = if (UploadKinds.isImage(mime, displayName)) {
+            try {
+                images.prepare(uri, snapshot.upload)
+            } catch (error: IOException) {
+                // The extension promised an image but the bytes do not decode.
+                // Uploading the file as-is beats failing the whole task.
+                images.prepareOpaque(uri, mime, displayName)
+            }
         } else {
             images.prepareOpaque(uri, mime, displayName)
         }
@@ -158,7 +160,5 @@ class UploadManager(
 
     private companion object {
         const val RETRY_DELAY_MS = 900L
-
-        val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "avif")
     }
 }

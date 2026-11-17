@@ -39,15 +39,25 @@ fun Context.readClipboard(): ClipboardPayload = runCatching {
         ?: return@runCatching ClipboardPayload.Empty
     val clip = manager.primaryClip ?: return@runCatching ClipboardPayload.Empty
     val item = clip.getItemAt(0)
+    val text = (item.text?.toString() ?: item.htmlText?.toString()).orEmpty().trim()
     val uri = item.uri
-    val image = uri != null && (
-        clip.description.hasMimeType("image/*") ||
-            contentResolver.getType(uri)?.startsWith("image/") == true
-        )
-    if (image && uri != null) return ClipboardPayload.Image(uri)
-    val text = (item.text?.toString() ?: item.coerceToText(this)?.toString()).orEmpty().trim()
-    if (text.isBlank()) ClipboardPayload.Empty else ClipboardPayload.Text(text)
+    // Rich clips can carry both text and a URI. Text wins unless the clip is a
+    // genuine image the resolver can name — a URI we cannot type is not worth
+    // failing an upload over.
+    val imageType = uri?.let { runCatching { contentResolver.getType(it) }.getOrNull() }
+    val isImage = uri != null &&
+        clipboardImageMime(clip.description) &&
+        imageType?.startsWith("image/") == true
+    if (isImage && text.isBlank()) return ClipboardPayload.Image(uri!!)
+    if (text.isNotEmpty()) return ClipboardPayload.Text(text)
+    // Last resort: an image clip whose URI has no type (some galleries).
+    if (uri != null && clipboardImageMime(clip.description)) return ClipboardPayload.Image(uri)
+    val coerced = item.coerceToText(this)?.toString().orEmpty().trim()
+    if (coerced.isNotEmpty()) ClipboardPayload.Text(coerced) else ClipboardPayload.Empty
 }.getOrDefault(ClipboardPayload.Empty)
+
+private fun clipboardImageMime(description: android.content.ClipDescription): Boolean =
+    description.hasMimeType("image/*") || description.mimeTypeCount == 0
 
 fun Context.openInBrowser(url: String): Boolean = runCatching {
     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))

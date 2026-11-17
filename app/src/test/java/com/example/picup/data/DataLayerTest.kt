@@ -448,3 +448,26 @@ class AppSettingsTest {
         assertEquals(original, restored)
     }
 }
+class UploadKindsTest {
+
+    @Test
+    fun `a real image mime always uses the image pipeline`() {
+        assertEquals(true, UploadKinds.isImage("image/png", "photo"))
+        assertEquals(true, UploadKinds.isImage("image/gif", "whatever.txt"))
+    }
+
+    @Test
+    fun `a non-image mime is opaque even with an image name`() {
+        assertEquals(false, UploadKinds.isImage("text/plain", "photo.png"))
+        assertEquals(false, UploadKinds.isImage("application/pdf", "scan.jpg"))
+    }
+
+    @Test
+    fun `a missing mime falls back to the extension`() {
+        assertEquals(true, UploadKinds.isImage("", "IMG_0001.JPG"))
+        assertEquals(true, UploadKinds.isImage("", "sunset.webp"))
+        assertEquals(false, UploadKinds.isImage("", "clipboard-20261117-0310.txt"))
+        assertEquals(false, UploadKinds.isImage("", "notes"))
+        assertEquals(false, UploadKinds.isImage("", "archive.tar.gz"))
+    }
+}
