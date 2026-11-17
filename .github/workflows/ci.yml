@@ -208,15 +208,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          notes_args=(--generate-notes)
+          # `gh release create` can generate notes, `gh release edit` cannot
+          # (it has no --generate-notes flag), so an update only rewrites the
+          # body when a notes file exists and otherwise keeps the existing one.
           if [ -f "docs/release-notes/$TAG.md" ]; then
-            notes_args=(--notes-file "docs/release-notes/$TAG.md")
+            create_notes=(--notes-file "docs/release-notes/$TAG.md")
+            edit_notes=("${create_notes[@]}")
+          else
+            create_notes=(--generate-notes)
+            edit_notes=()
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber
-            gh release edit "$TAG" --title "PicUp $TAG" "${notes_args[@]}"
+            gh release edit "$TAG" --title "PicUp $TAG" "${edit_notes[@]}"
           else
             gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt \
-              --title "PicUp $TAG" --verify-tag "${notes_args[@]}"
+              --title "PicUp $TAG" --verify-tag "${create_notes[@]}"
           fi
