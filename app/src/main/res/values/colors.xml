@@ -5,5 +5,5 @@
          flash a different colour. -->
     <color name="window_background">#F3F5F4</color>
     <color name="window_background_dark">#101413</color>
-    <color name="ic_launcher_background">#246B50</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

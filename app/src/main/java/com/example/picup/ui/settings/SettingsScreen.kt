@@ -106,6 +106,7 @@ import com.example.picup.data.UploadOptions
 import com.example.picup.ui.components.CardRow
 import com.example.picup.ui.components.CardRowPosition
 import com.example.picup.ui.components.IconBubble
+import com.example.picup.ui.components.PicUpDropdownMenu
 import com.example.picup.ui.components.PicUpSegmented
 import com.example.picup.ui.components.PillChip
 import com.example.picup.ui.components.SectionLabel
@@ -593,6 +594,22 @@ private fun AboutDialog(onDismiss: () -> Unit) {
     )
 }
 
+private fun onSaveFormat(
+    existing: CopyFormat?,
+    label: String,
+    template: String,
+    onSave: (CopyFormat) -> Unit,
+) {
+    onSave(
+        existing?.copy(label = label.trim(), template = template)
+            ?: CopyFormat(
+                id = "custom-${System.currentTimeMillis()}",
+                label = label.trim(),
+                template = template,
+            ),
+    )
+}
+
 @Composable
 private fun GroupLabel(
     text: String,
@@ -694,7 +711,7 @@ private fun RemoteRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            PicUpDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text("编辑") },
                     leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -758,7 +775,7 @@ private fun AccountRow(account: AccountProfile, onDelete: () -> Unit) {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            PicUpDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text("退出账号") },
                     leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null) },
@@ -1119,32 +1136,37 @@ private fun FormatEditDialog(
                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (existing != null) {
-                    // Destructive action lives in the body: three text buttons in
-                    // the action row never space out evenly.
-                    TextButton(onClick = { onDelete(existing.id) }) {
-                        Text("删除这个格式", color = MaterialTheme.colorScheme.error)
-                    }
-                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = label.isNotBlank() && template.isNotBlank(),
-                onClick = {
-                    onSave(
-                        existing?.copy(label = label.trim(), template = template)
-                            ?: CopyFormat(
-                                id = "custom-${System.currentTimeMillis()}",
-                                label = label.trim(),
-                                template = template,
-                            ),
-                    )
-                },
-            ) { Text("保存") }
+            if (existing != null) {
+                // 删除 / 取消 / 保存 share one row and one weight each, so the
+                // gaps between them are identical by construction.
+                Row(Modifier.fillMaxWidth()) {
+                    TextButton(
+                        onClick = { onDelete(existing.id) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("删除", color = MaterialTheme.colorScheme.error)
+                    }
+                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("取消") }
+                    TextButton(
+                        enabled = label.isNotBlank() && template.isNotBlank(),
+                        onClick = { onSaveFormat(existing, label, template, onSave) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("保存") }
+                }
+            } else {
+                TextButton(
+                    enabled = label.isNotBlank() && template.isNotBlank(),
+                    onClick = { onSaveFormat(null, label, template, onSave) },
+                ) { Text("保存") }
+            }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+        dismissButton = if (existing == null) {
+            { TextButton(onClick = onDismiss) { Text("取消") } }
+        } else {
+            null
         },
     )
 }

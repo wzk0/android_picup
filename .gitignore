@@ -38,3 +38,6 @@ google-services.json
 
 # Agent notes stay local
 *AGENTS.md
+
+# Tooling archive (share by hand, not in Git)
+/tool.zip

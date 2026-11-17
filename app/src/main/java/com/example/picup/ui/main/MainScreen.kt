@@ -139,6 +139,7 @@ import com.example.picup.data.QualityPreset
 import com.example.picup.data.UploadRecord
 import com.example.picup.ui.components.CardRow
 import com.example.picup.ui.components.EmptyState
+import com.example.picup.ui.components.PicUpDropdownMenu
 import com.example.picup.ui.components.PicUpIconSegmented
 import com.example.picup.ui.components.cardRowPosition
 import com.example.picup.ui.components.PicUpSegmented
@@ -1214,7 +1215,7 @@ private fun HistoryRowContent(
                     IconButton(onClick = { expanded = true }) {
                         Icon(Icons.Rounded.MoreVert, contentDescription = "更多操作")
                     }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    PicUpDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         HistoryMenuItems(
                             record = record,
                             formats = formats,

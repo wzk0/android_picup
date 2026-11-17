@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.picup.ui.theme.cardSurface
 import com.example.picup.ui.theme.chipSurface
+import com.example.picup.ui.theme.floatingSurface
 import com.example.picup.ui.cachedThumbnail
 import com.example.picup.ui.loadThumbnail
 
@@ -274,6 +277,29 @@ fun CardRow(
     ) {
         Column(content = content)
     }
+}
+
+/** Every overflow menu uses the same rounded floating surface. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PicUpDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        // surfaceContainerHigh instead of the floating surface: white menus on a
+        // near-white page read as a hole in the layout.
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 0.dp,
+        shadowElevation = 3.dp,
+        content = content,
+    )
 }
 
 @Composable
