@@ -38,7 +38,7 @@
 ## 2. 功能
 
 - **仓库选择**：登录后列出可写入的仓库（会按 token 的 push 权限过滤），也可以手动填 `owner/repo`；分支可下拉选择或手填。
-- **上传**：相册多选（系统 Photo Picker，不需要存储权限）。逐张串行提交，避免同分支并发提交互相顶掉。
+- **上传**：相册多选（系统 Photo Picker，不需要存储权限）+ 任意文件 + 剪贴板（图片走图片管线，文本按纯文本文件上传并让你命名）。逐张串行提交，避免同分支并发提交互相顶掉。
 - **图片处理**：输出格式可选「原格式 / WebP / JPEG / PNG」，质量三档（原图 100 / 压缩 85 / 轻量 60），可开关「移除 EXIF」与「文件名转小写」。「原格式」路径按容器格式就地剥离 EXIF/XMP/IPTC（JPEG 段、PNG chunk、WebP RIFF chunk），不重新编码；关掉「移除 EXIF」时重编码会把原 EXIF TIFF 块回填进 JPEG / PNG / WebP 输出（无 VP8X 头的 WebP 无法携带，按规范跳过）；GIF 永远原样保留动画；重编码反而变大时保留原文件。
 - **路径模板**：`uploads/{yyyy}/{MM}/{name}-{rand6}.{ext}`，支持 `{yyyy} {MM} {dd} {HH} {mm} {ss} {name} {ext} {rand6} {hash} {width} {height} {size}` 等占位符，设置页有实时预览。每个仓库还可以单独覆盖。
 - **复制格式**：内置直链 / Markdown / HTML / BBCode / 带标题 Markdown，可增删改、启停、指定「默认」。历史里点一下复制默认格式，长按菜单复制其它格式。

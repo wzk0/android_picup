@@ -53,7 +53,12 @@ class UploadManager(
 
         onStage("处理图片")
         val mime = context.contentResolver.getType(uri).orEmpty()
-        val prepared = if (mime.startsWith("image/") || mime.isBlank()) {
+        // `file://` URIs (clipboard text, cache copies) have no MIME type, so the
+        // extension decides whether the image pipeline applies.
+        val (_, extension) = Naming.splitExtension(displayName)
+        val looksLikeImage = mime.startsWith("image/") ||
+            (mime.isBlank() && extension in IMAGE_EXTENSIONS)
+        val prepared = if (looksLikeImage) {
             images.prepare(uri, snapshot.upload)
         } else {
             images.prepareOpaque(uri, mime, displayName)
@@ -153,5 +158,7 @@ class UploadManager(
 
     private companion object {
         const val RETRY_DELAY_MS = 900L
+
+        val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "avif")
     }
 }

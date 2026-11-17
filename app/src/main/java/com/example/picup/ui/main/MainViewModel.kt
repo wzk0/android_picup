@@ -9,6 +9,8 @@ import com.example.picup.data.AppSettings
 import com.example.picup.data.CopyFormat
 import com.example.picup.data.CopyFormatRenderer
 import com.example.picup.data.HistoryLayout
+import com.example.picup.data.Naming
+import com.example.picup.data.PathTemplate
 import com.example.picup.data.LinkValues
 import com.example.picup.data.UploadRecord
 import kotlinx.coroutines.CancellationException
@@ -22,7 +24,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
@@ -88,6 +92,47 @@ class MainViewModel(private val app: AppContainer) : ViewModel() {
                 uploadLock.withLock { runTask(task) }
             }
         }
+    }
+
+    /** Image clips: copy the bytes out immediately, the grant may not outlive the queue. */
+    fun enqueueClipboardImage(uri: Uri) {
+        viewModelScope.launch {
+            val payload = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bytes = app.context.contentResolver.openInputStream(uri)
+                        ?.use { it.readBytes() }
+                        ?: return@runCatching null
+                    val name = app.displayNames.resolve(uri)
+                    name to bytes
+                }.getOrNull()
+            }
+            if (payload == null) {
+                _messages.emit("无法读取剪贴板里的图片")
+                return@launch
+            }
+            val (name, bytes) = payload
+            val file = withContext(Dispatchers.IO) { app.writeCacheFile("clipboard", name, bytes) }
+            enqueue(listOf(Uri.fromFile(file)))
+        }
+    }
+
+    /** Text clips: uploaded as a plain-text file under the name the user picks. */
+    fun enqueueClipboardText(text: String, fileName: String) {
+        viewModelScope.launch {
+            if (text.length > MAX_CLIPBOARD_TEXT) {
+                _messages.emit("剪贴板文本过大（上限 ${MAX_CLIPBOARD_TEXT / 1024} KB）")
+                return@launch
+            }
+            val file = withContext(Dispatchers.IO) {
+                app.writeCacheFile("clipboard", ensureTxt(fileName), text.toByteArray())
+            }
+            enqueue(listOf(Uri.fromFile(file)))
+        }
+    }
+
+    private fun ensureTxt(fileName: String): String {
+        val safe = Naming.slug(fileName.substringBeforeLast('.', fileName), lowerCase = false)
+        return if (fileName.contains('.')) "$safe.${fileName.substringAfterLast('.').lowercase()}" else "$safe.txt"
     }
 
     fun retry(taskId: String) {
@@ -240,6 +285,7 @@ class MainViewModel(private val app: AppContainer) : ViewModel() {
 
     companion object {
         private const val FINISHED_CLEANUP_MS = 260L
+        private const val MAX_CLIPBOARD_TEXT = 512 * 1024
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

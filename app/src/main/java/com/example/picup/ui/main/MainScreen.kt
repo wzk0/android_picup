@@ -71,6 +71,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.outlined.GridView
@@ -94,6 +95,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.toShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -145,8 +147,10 @@ import com.example.picup.ui.components.PillChip
 import com.example.picup.ui.components.SectionLabel
 import com.example.picup.ui.components.Thumbnail
 import com.example.picup.ui.components.ThumbnailSource
+import com.example.picup.ui.ClipboardPayload
 import com.example.picup.ui.copyPlainText
 import com.example.picup.ui.openInBrowser
+import com.example.picup.ui.readClipboard
 import com.example.picup.ui.shareText
 import com.example.picup.ui.theme.cardSurface
 import kotlinx.coroutines.delay
@@ -182,6 +186,9 @@ fun MainScreen(
     val recentListState = rememberLazyListState()
     val historyGridState = rememberLazyGridState()
 
+    var clipboardText by remember { mutableStateOf<String?>(null) }
+    var clipboardName by remember { mutableStateOf("") }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(30),
     ) { uris -> if (uris.isNotEmpty()) viewModel.enqueue(uris) }
@@ -191,6 +198,18 @@ fun MainScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { message -> snackbar.showSnackbar(message) }
+    }
+
+    val onPasteClipboard: () -> Unit = {
+        when (val payload = context.readClipboard()) {
+            is ClipboardPayload.Image -> viewModel.enqueueClipboardImage(payload.uri)
+            is ClipboardPayload.Text -> {
+                clipboardName = defaultClipboardFileName()
+                clipboardText = payload.text
+            }
+
+            ClipboardPayload.Empty -> viewModel.notify("剪贴板里没有可上传的图片或文字")
+        }
     }
 
     val copyRendered: (UploadRecord, CopyFormat) -> Unit = { record, format ->
@@ -209,6 +228,18 @@ fun MainScreen(
     val preview: (UploadRecord) -> Unit = { record ->
         val index = history.indexOfFirst { it.id == record.id }
         if (index >= 0) onOpenPreview(index)
+    }
+
+    clipboardText?.let { text ->
+        ClipboardUploadDialog(
+            initialName = clipboardName,
+            characterCount = text.length,
+            onDismiss = { clipboardText = null },
+            onConfirm = { name ->
+                viewModel.enqueueClipboardText(text, name)
+                clipboardText = null
+            },
+        )
     }
 
     Scaffold(
@@ -266,6 +297,7 @@ fun MainScreen(
                                     )
                                 },
                                 onPickAnyFile = { anyFilePicker.launch(arrayOf("*/*")) },
+                                onPasteClipboard = onPasteClipboard,
                                 onCopy = copyRendered,
                                 onCopyActive = copyActive,
                                 onRetry = viewModel::retry,
@@ -295,6 +327,50 @@ fun MainScreen(
             }
         }
     }
+}
+
+private fun defaultClipboardFileName(): String {
+    val stamp = java.time.LocalDateTime.now()
+        .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
+    return "clipboard-$stamp.txt"
+}
+
+@Composable
+private fun ClipboardUploadDialog(
+    initialName: String,
+    characterCount: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var name by remember(initialName) { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("上传剪贴板文本") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("文件名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                Text(
+                    text = "共 $characterCount 个字符，按纯文本文件上传。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = { onConfirm(name) },
+            ) { Text("上传") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable
@@ -374,6 +450,7 @@ private fun UploadTab(
     thumbOf: (UploadRecord) -> java.io.File,
     onPick: () -> Unit,
     onPickAnyFile: () -> Unit,
+    onPasteClipboard: () -> Unit,
     onCopy: (UploadRecord, CopyFormat) -> Unit,
     onCopyActive: (UploadRecord) -> Unit,
     onRetry: (String) -> Unit,
@@ -386,7 +463,7 @@ private fun UploadTab(
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp)) {
-            PickCard(onPick = onPick, onPickAnyFile = onPickAnyFile)
+            PickCard(onPick = onPick, onPickAnyFile = onPickAnyFile, onPasteClipboard = onPasteClipboard)
         }
         Spacer(Modifier.height(8.dp))
         // Only the section below the picker crossfades; the picker itself and
@@ -470,7 +547,11 @@ private fun UploadTab(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PickCard(onPick: () -> Unit, onPickAnyFile: () -> Unit) {
+private fun PickCard(
+    onPick: () -> Unit,
+    onPickAnyFile: () -> Unit,
+    onPasteClipboard: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -529,19 +610,35 @@ private fun PickCard(onPick: () -> Unit, onPickAnyFile: () -> Unit) {
                 color = colors.onSurfaceVariant,
             )
             }
-            FilledTonalIconButton(
-                onClick = onPickAnyFile,
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(10.dp)
-                    .size(52.dp),
-                shape = MaterialShapes.Cookie9Sided.toShape(),
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.UploadFile,
-                    contentDescription = "上传任意文件",
-                    modifier = Modifier.size(24.dp),
-                )
+                FilledTonalIconButton(
+                    onClick = onPickAnyFile,
+                    modifier = Modifier.size(52.dp),
+                    shape = MaterialShapes.Cookie9Sided.toShape(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.UploadFile,
+                        contentDescription = "上传任意文件",
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+                FilledTonalIconButton(
+                    onClick = onPasteClipboard,
+                    modifier = Modifier.size(52.dp),
+                    shape = MaterialShapes.Cookie9Sided.toShape(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentPaste,
+                        contentDescription = "上传剪贴板内容",
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
     }

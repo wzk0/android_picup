@@ -23,6 +23,32 @@ fun Context.copyPlainText(label: String, text: String) {
     manager.setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
+/** What the clipboard holds right now, as far as uploads care. */
+sealed interface ClipboardPayload {
+    data class Image(val uri: Uri) : ClipboardPayload
+    data class Text(val text: String) : ClipboardPayload
+    data object Empty : ClipboardPayload
+}
+
+/**
+ * Reads the primary clip. Image clips arrive as a content Uri the app may read
+ * while it is in the foreground; everything else is coerced to text.
+ */
+fun Context.readClipboard(): ClipboardPayload = runCatching {
+    val manager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        ?: return@runCatching ClipboardPayload.Empty
+    val clip = manager.primaryClip ?: return@runCatching ClipboardPayload.Empty
+    val item = clip.getItemAt(0)
+    val uri = item.uri
+    val image = uri != null && (
+        clip.description.hasMimeType("image/*") ||
+            contentResolver.getType(uri)?.startsWith("image/") == true
+        )
+    if (image && uri != null) return ClipboardPayload.Image(uri)
+    val text = (item.text?.toString() ?: item.coerceToText(this)?.toString()).orEmpty().trim()
+    if (text.isBlank()) ClipboardPayload.Empty else ClipboardPayload.Text(text)
+}.getOrDefault(ClipboardPayload.Empty)
+
 fun Context.openInBrowser(url: String): Boolean = runCatching {
     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }.isSuccess

@@ -1119,6 +1119,13 @@ private fun FormatEditDialog(
                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (existing != null) {
+                    // Destructive action lives in the body: three text buttons in
+                    // the action row never space out evenly.
+                    TextButton(onClick = { onDelete(existing.id) }) {
+                        Text("删除这个格式", color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1137,12 +1144,7 @@ private fun FormatEditDialog(
             ) { Text("保存") }
         },
         dismissButton = {
-            Row {
-                if (existing != null) {
-                    TextButton(onClick = { onDelete(existing.id) }) { Text("删除") }
-                }
-                TextButton(onClick = onDismiss) { Text("取消") }
-            }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }
