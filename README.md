@@ -78,9 +78,9 @@
 - PKCS12 keystore，RSA 4096 / 10000 天，DN `CN=github.wzk0.picup`，库密码与 key 密码是同一个。
 - Gradle 侧只认四个环境变量：`PICUP_KEYSTORE_PATH`、`PICUP_KEYSTORE_PASSWORD`、`PICUP_KEY_ALIAS`、`PICUP_KEY_PASSWORD`；缺任何一个都不会产出半签名包（无变量时产出未签名包）。
 - `release.keystore` 与 `release-signing.env` 都已在 `.gitignore` 里；keystore 丢了等于换了 App 身份（已装用户只能卸载重装），务必异地备份。
-- CI（`.github/workflows/ci.yml`）读取四个仓库 secret：`PICUP_KEYSTORE_BASE64`、`PICUP_KEYSTORE_PASSWORD`、`PICUP_KEY_ALIAS`、`PICUP_KEY_PASSWORD`（脚本会打印对应值）。
-- CI 分三档：push 到 `main` 走 `quick-check`（只编译 debug Kotlin）；PR / `workflow_dispatch` 走 `pull-request-check`（test + assembleDebug + lintDebug，不签名、不发布）；`v*` tag 走 `release`（解码 secret 签名 → `apksigner verify` 校验 → `PicUp-<versionName>.apk` + `SHA256SUMS.txt` 作为 release 资产发布）。
-- tag 构建四个 secret 缺任何一个直接失败（绝不发布未签名包）；非 tag 的 release 构建缺 secret 时只 warning 并产出未签名包。
+- CI（`.github/workflows/release.yml`）读取四个仓库 secret：`PICUP_KEYSTORE_BASE64`、`PICUP_KEYSTORE_PASSWORD`、`PICUP_KEY_ALIAS`、`PICUP_KEY_PASSWORD`（脚本会打印对应值）。
+- CI 按触发分三个文件：push 到 `main` 走 `quick-check.yml`（只编译 debug Kotlin）；PR / `workflow_dispatch` 走 `pull-request-check.yml`（test + assembleDebug + lintDebug，不签名、不发布）；`v*` tag 走 `release.yml`（解码 secret 签名 → `apksigner verify` 校验 → `PicUp-<versionName>.apk` + `SHA256SUMS.txt` 作为 release 资产发布）。
+- `v*` tag 构建的四个 secret 缺任何一个直接失败（绝不发布未签名包）；`release.yml` 只由 tag 触发，没有「缺 secret 也继续出未签名包」的退路。
 - 发版前改 `version.properties`（`code` / `name`），构建不改版本、也不弄脏工作区。
 
 校验签名：

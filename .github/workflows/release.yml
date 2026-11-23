@@ -1,19 +1,17 @@
-name: CI
+name: Release
 
-# Release builds are signed: the release job decodes the four PICUP_* secrets
+# Tag pushes only (v*): build, sign, verify and publish the APK.
+#
+# Release builds are signed: this workflow decodes the four PICUP_* secrets
 # into $RUNNER_TEMP before Gradle runs, and app/build.gradle.kts only creates
 # the externalRelease signingConfig when PICUP_KEYSTORE_PATH is set. Nothing
 # signing-related is ever committed.
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,89 +24,10 @@ env:
   APK_DIR: app/build/outputs/apk/release
 
 jobs:
-  # 日常 Push：快速检查，不打包 APK
-  quick-check:
-    name: Quick Check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
-
-      - name: Install Android SDK
-        run: |
-          (set +o pipefail; yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null)
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "${{ env.ANDROID_PLATFORM }}" \
-            "${{ env.ANDROID_BUILD_TOOLS }}"
-
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
-      - name: Compile Debug Kotlin
-        run: ./gradlew :app:compileDebugKotlin --stacktrace
-
-  # PR：完整验证，不发布 APK
-  pull-request-check:
-    name: Pull Request Check
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
-
-      - name: Install Android SDK
-        run: |
-          (set +o pipefail; yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null)
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "${{ env.ANDROID_PLATFORM }}" \
-            "${{ env.ANDROID_BUILD_TOOLS }}"
-
-      - name: Grant execute permission
-        run: chmod +x gradlew
-
-      # `test` runs the suite AGP actually creates here — the debug unit-test
-      # variant; the optimised release variant has none.
-      - name: Run unit tests
-        run: ./gradlew test --stacktrace
-
-      - name: Build Debug
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Run Android Lint
-        run: ./gradlew :app:lintDebug --stacktrace
-
-  # Tag：只构建和发布 Release APK
   release:
     name: Build Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 35
-
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -136,9 +55,10 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test --stacktrace
 
-      # The four signing secrets are optional only for non-tag runs: a v* tag
-      # must produce a signed APK, so a missing secret fails the job instead of
-      # silently publishing an unsigned build.
+      # A v* tag must produce a signed APK, so all four secrets are mandatory
+      # here: a missing one fails the job instead of silently publishing an
+      # unsigned build. This workflow runs on tag pushes only, which is why
+      # there is no "unsigned fallback" path any more.
       - name: Decode release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.PICUP_KEYSTORE_BASE64 }}
@@ -146,16 +66,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.PICUP_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.PICUP_KEY_PASSWORD }}
           KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
-          GITHUB_REF: ${{ github.ref }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || \
              [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
-            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-              echo "::error::A release tag needs all four PICUP_* signing secrets."
-              exit 1
-            fi
-            echo "::warning::Release signing secrets are missing; the release APK will be unsigned."
-            exit 0
+            echo "::error::A release tag needs all four PICUP_* signing secrets."
+            exit 1
           fi
           printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
