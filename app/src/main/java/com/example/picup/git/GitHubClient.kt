@@ -18,6 +18,7 @@ class GitHubClient(private val api: String) : GitClient {
     private fun headers(token: String) = mapOf(
         "Authorization" to "Bearer $token",
         "Accept" to "application/vnd.github+json",
+        "Content-Type" to Http.CONTENT_TYPE_JSON,
         "X-GitHub-Api-Version" to "2022-11-28",
     )
 

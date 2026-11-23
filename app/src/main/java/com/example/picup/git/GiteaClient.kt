@@ -15,7 +15,10 @@ import kotlinx.serialization.json.put
 /** Gitea and its hard fork Forgejo. [host] is required. */
 class GiteaClient(private val api: String) : GitClient {
 
-    private fun headers(token: String) = mapOf("Authorization" to "token $token")
+    private fun headers(token: String) = mapOf(
+        "Authorization" to "token $token",
+        "Content-Type" to Http.CONTENT_TYPE_JSON,
+    )
 
     override suspend fun verify(token: String): AccountInfo = withContext(Dispatchers.IO) {
         val response = Http.get("$api/user", headers(token))

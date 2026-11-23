@@ -31,6 +31,18 @@ class HttpResponse(val code: Int, val body: String) {
 object Http {
     const val USER_AGENT = "PicUp-Android/1.0"
 
+    /**
+     * Must be sent with every JSON write.
+     *
+     * `HttpURLConnection` invents `Content-Type: application/x-www-form-urlencoded`
+     * whenever a request has a body and no explicit type. Gitea binds the request
+     * body by content type, so a JSON payload labelled as a form decodes to zero
+     * fields: the branch, commit message and base64 content are all dropped and
+     * the file lands as an empty commit. GitHub and GitLab sniff the body and
+     * happen to survive, which is why this only showed up on Gitea/Forgejo.
+     */
+    const val CONTENT_TYPE_JSON = "application/json; charset=utf-8"
+
     fun get(url: String, headers: Map<String, String> = emptyMap()): HttpResponse =
         execute("GET", url, headers, null)
 

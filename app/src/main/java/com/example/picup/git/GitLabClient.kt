@@ -15,7 +15,10 @@ import kotlinx.serialization.json.put
 /** GitLab.com and self-hosted GitLab (`host` = the instance domain). */
 class GitLabClient(private val api: String) : GitClient {
 
-    private fun headers(token: String) = mapOf("PRIVATE-TOKEN" to token)
+    private fun headers(token: String) = mapOf(
+        "PRIVATE-TOKEN" to token,
+        "Content-Type" to Http.CONTENT_TYPE_JSON,
+    )
 
     private fun projectId(remote: Remote): String = Http.encodeAll("${remote.owner}/${remote.repo}")
 
